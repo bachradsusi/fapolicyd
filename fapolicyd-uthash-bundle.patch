@@ -1,11 +1,11 @@
 diff --git a/configure.ac b/configure.ac
-index 40067279ecce..c0e6583af8ad 100644
+index 2c33b695795a..622aeb9079a6 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -162,9 +162,6 @@ AC_CHECK_HEADER(sys/fanotify.h, , [AC_MSG_ERROR(
- ["Couldn't find sys/fanotify.h...your kernel might not be new enough"] )])
- AC_CHECK_FUNCS(fexecve, [], [])
+@@ -164,9 +164,6 @@ AC_CHECK_FUNCS(fexecve, [], [])
  AC_CHECK_FUNCS([gettid])
+ AC_CHECK_FUNCS([mallinfo2])
+ 
 -AC_CHECK_HEADER(uthash.h, , [AC_MSG_ERROR(
 -["Couldn't find uthash.h...uthash-devel is missing"] )])
 -
@@ -27,7 +27,7 @@ index 05d0f8e9ddd6..65a218992152 100644
  lib_LTLIBRARIES= libfapolicyd.la
  
 diff --git a/src/library/rpm-backend.c b/src/library/rpm-backend.c
-index c972874311d7..0acf7ba5b84a 100644
+index 392fd9176b0c..e93e13369096 100644
 --- a/src/library/rpm-backend.c
 +++ b/src/library/rpm-backend.c
 @@ -46,7 +46,7 @@
