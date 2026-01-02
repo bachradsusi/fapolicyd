@@ -340,12 +340,15 @@ static int grow_map_after_full(conf_t *config)
 }
 
 
-static int init_db(const conf_t *config)
+static int init_db(const conf_t *config, int read_only)
 {
 	unsigned int flags = MDB_MAPASYNC|MDB_NOSYNC;
 #ifndef DEBUG
 	flags |= MDB_WRITEMAP;
 #endif
+	if (read_only)
+		flags = MDB_NOSYNC|MDB_RDONLY|MDB_NOLOCK;
+
 	if (mdb_env_create(&env)) {
 		/* env not allocated on failure, but ensure it's NULL */
 		env = NULL;
@@ -1425,7 +1428,7 @@ int init_database(conf_t *config)
 		msg(LOG_INFO, "autosize: map size recomputed to %u MiB",
 		    config->db_max_size);
 
-	if ((rc = init_db(config))) {
+	if ((rc = init_db(config, 0))) {
 		msg(LOG_ERR, "Cannot open the trust database, init_db() (%d)",
 		    rc);
 		return rc;
@@ -1888,7 +1891,7 @@ static void do_reload_db(conf_t* config)
 			mdb_env_close(env);
 			env = NULL;
 
-			if ((rc = init_db(config))) {
+			if ((rc = init_db(config, 0))) {
 				msg(LOG_ERR,
 			     "Cannot open the trust database, init_db() (%d)",
 					rc);
@@ -2174,7 +2177,7 @@ int walk_database_start(conf_t *config)
 	int rc;
 
 	// Initialize the database
-	if (init_db(config)) {
+	if (init_db(config, 1)) {
 		printf("Cannot open the trust database\n");
 		return 1;
 	}
