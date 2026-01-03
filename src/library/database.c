@@ -37,6 +37,7 @@
 #include <ctype.h>
 #include <openssl/sha.h>
 #include <signal.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -112,6 +113,8 @@ extern atomic_bool stop;
 extern atomic_bool needs_flush;
 extern atomic_bool reload_rules;
 
+static int db_lock_fd = -1;
+static char *db_lock_path = DB_LOCK;
 
 static int is_link(const char *path)
 {
@@ -1774,6 +1777,57 @@ void unlock_rule(void) {
 }
 
 /*
+* Lock database to prevent update when there's another reader
+ */
+int lock_db(conf_t *config, int write) {
+	char err_buff[BUFFER_SIZE];
+	int op;
+
+	db_lock_fd  = open(db_lock_path, O_WRONLY, 0);
+	if (db_lock_fd < 0 && errno == ENOENT) {
+		if ((db_lock_fd  = open(db_lock_path, O_CREAT | O_WRONLY, 0660)) < 0) {
+			msg(LOG_ERR, "Can't lock the database");
+			return -1;
+		}
+		if (chown(db_lock_path, config->uid, config->gid)) {
+			msg(LOG_ERR, "Failed to fix ownership of lock file %s (%s)",
+			    db_lock_path, strerror_r(errno, err_buff, BUFFER_SIZE));
+			return -1;
+		}
+
+	}
+        if (db_lock_fd < 0) {
+                msg(LOG_ERR, "Failed to open lock file %s: %s",
+                    db_lock_path, strerror_r(errno, err_buff, BUFFER_SIZE));
+                return -1;
+        }
+
+        op = write ? LOCK_EX : LOCK_SH;
+
+        if (flock(db_lock_fd, op) < 0) {
+                msg(LOG_ERR, "Failed to acquire lock on %s: %s",
+                    db_lock_path, strerror(errno));
+		sleep(5);
+                close(db_lock_fd);
+                db_lock_fd = -1;
+                return -1;
+        }
+
+        return 0;
+}
+
+void release_db_lock(void)
+{
+        if (db_lock_fd >= 0) {
+                flock(db_lock_fd, LOCK_UN);
+                close(db_lock_fd);
+                db_lock_fd = -1;
+        }
+}
+
+
+
+/*
  * This function reloads updated backend db into our internal database.
  * It returns 0 on success and non-zero on error.
  */
@@ -1815,6 +1869,7 @@ static int update_database(conf_t *config)
 
 	unlock_update_thread();
 	mdb_env_sync(env, 1);
+	release_db_lock();
 
 	if (rc) {
 		msg(LOG_ERR, "Failed to create the trust database (%d)", rc);
@@ -2186,18 +2241,23 @@ int walk_database_start(conf_t *config)
 		return 1;
 	}
 
+	if (lock_db(config, 0) < 0)
+		printf("Cannot acquire database lock, continue without locking");
+
 	// Position to the first entry
 	mdb_txn_begin(env, NULL, MDB_RDONLY, &lt_txn);
 
 	if ((rc = open_dbi(lt_txn))) {
 		puts(mdb_strerror(rc));
 		abort_transaction(lt_txn);
+		release_db_lock();
 		return 1;
 	}
 
 	if ((rc = mdb_cursor_open(lt_txn, dbi, &lt_cursor))) {
 		puts(mdb_strerror(rc));
 		abort_transaction(lt_txn);
+		release_db_lock();
 		return 1;
 	}
 
@@ -2236,4 +2296,6 @@ void walk_database_finish(void)
 	mdb_cursor_close(lt_cursor);
 	abort_transaction(lt_txn);
 	close_db(0);
+	release_db_lock();
+
 }
