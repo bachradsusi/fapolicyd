@@ -33,6 +33,7 @@
 #define TRUST_FILE_PATH "/etc/fapolicyd/fapolicyd.trust"
 #define DB_DIR          "/var/lib/fapolicyd"
 #define DB_NAME         "trust.db"
+#define DB_LOCK         "/var/lib/fapolicyd/db.lock"
 #define REPORT          "/var/log/fapolicyd-access.log"
 #define RUN_DIR         "/run/fapolicyd/"
 #define STAT_REPORT     "/run/fapolicyd/fapolicyd.state"
